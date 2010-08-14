@@ -44,7 +44,7 @@ uci("uci" ++ _, E) ->
 	{ok, E};
 
 uci("position startpos moves " ++ L, #engine{process=P}=E) ->
-	P ! {position, L, E},
+	P ! {position, L},
 	{ok, E}; 
 
 uci("print" ++ __, #engine{process=P}=E) ->
@@ -98,7 +98,7 @@ p(#game{}=Game) ->
 	receive
 		stop -> ok;
 		{move, _, _} -> p(Game);
-		{position, L, E} -> 
+		{position, L} -> 
 			NewGame = setup_board(string:tokens(L, " "), Game),
 			p(NewGame);
 		print -> 
@@ -117,38 +117,36 @@ get_pos(C, L) ->
 	CV + LV.	
 
 process_move([C1,L1,C2,L2,_], Game) -> process_move([C1,L1,C2,L2], Game);
-process_move([C1,L1,C2,L2], Game) ->
+process_move([C1,L1,C2,L2], #game{main_board=#board{s=S}}=Game) ->
 	P1  = get_pos(C1, L1),
 	P2  = get_pos(C2, L2),
-	io:format("M: ~p ~p~n", [P1, P2]),
-	
-	%%%RGame=remove_piece(P1, Game),
-	%%%PGame=put_piece(P2, RGame),
-	Game. 
+	io:format("M: ~p ~p~n", [P1, P2]), 
+	{{Color, Piece}=P, RGame}=remove_piece(P1, Game),
+	put_piece(Color, Piece, P2, RGame). 
 
 remove_piece(Pos, #game{main_board=#board{s=S}}=Game) ->
 	{Color, Piece}=array:get(Pos, S),
-	remove_piece(Piece, Pos, Game).
-remove_piece(Piece, Pos, #game{main_board=#board{s=S}=MB}=Game) ->
-	PType=array:get(Piece, S),
-	NewS=array:set(Piece, -1, S),
-	%%%% MB#board
-	Game.
+	io:format("P to Rem: ~p~n", [{Color, Piece}]),
+	remove_piece(Color, Piece, Pos, Game).
+remove_piece(Color, Piece, Pos, #game{main_board=#board{s=S}=MB}=Game) ->
+	BPos = 1 bsl Pos,
+	S0 = array:set(Pos, 0, S),
+	PV = element(Piece, MB) - BPos, 
+	MB0 = setelement(Piece, MB, PV),
+	CV = element(Color, Game) - BPos, 	
+	G0 = setelement(Color, Game, CV),
+	{{Color, Piece}, G0#game{main_board=MB0#board{s=S0}}}.
 
 put_piece(Color, Piece, Pos, #game{main_board=#board{s=S}=MB}=Game) ->
 	BPos = 1 bsl Pos,
-	io:format("Setting Array: ~p on Pos:~p Value:~p", [S, Pos, {Color,Piece}]),	
 	S0 = array:set(Pos, {Color, Piece}, S),
-	io:format("S[~p] -~p ~n", [S0, Piece]),
 	P = element(Piece, MB),
 	NP = P bor BPos,
 	MB0 = setelement(Piece, MB, NP),
-	io:format("P[~p][~p]~n", [P, NP]),
-	C = element(Color, MB0),
+	C = element(Color, Game),
 	NC = C bor BPos,
-	MB1 = setelement(Color, MB0, NC),
-	io:format("C[~p][~p]~n", [C, NC]),
-	Game#game{main_board= MB1#board{ s=S0 } }.
+	G = setelement(Color, Game, NC),
+	G#game{main_board=MB0#board{s=S0}}.
 
 print_game(#game{main_board=#board{s=S}}) ->	
 	?DRAW_LINE,
@@ -157,7 +155,7 @@ print_game(#game{main_board=#board{s=S}}) ->
 print_game(Array, -1) -> io:format("|~n", []), ?DRAW_LINE;
 print_game(Array, N) ->
 	X = (N+1) rem 8,
-        case X == 0 andalso N > 0  of
+        case X == 0 andalso N < 63  of
                 true -> io:format("|~n", []), ?DRAW_LINE;
                 _ -> ok
         end,
