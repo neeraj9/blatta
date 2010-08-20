@@ -1,18 +1,6 @@
 -module(echess).
 -compile(export_all).
-
--export([init/0]).
-
--define(UCIOK, io:format("uciok~n",[])).
--define(WBOARD, 16#ffff).
--define(BBOARD, 16#ffff000000000000).
--define(DRAW_LINE, io:format("+--+--+--+--+--+--+--+--+~n", [])).
--define(EMPTY_GAME, #game{w=0, b=0, main_board=#board{p=0, b=0, n=0, r=0, q=0, k=0, s=array:new([{size,64},{fixed,true},{default,0}])}}).
--define(START_POS, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").
-
--record(board, {p, b, n, r, q, k, s}).
--record(engine, {process}).
--record(game, {w, b, main_board, turn}).
+-include("blatta.hrl").
 
 init() -> 
 	{ok, Engine} = new_engine(),
@@ -47,7 +35,11 @@ uci("position startpos moves " ++ L, #engine{process=P}=E) ->
 	P ! {position, L},
 	{ok, E}; 
 
-uci("print" ++ __, #engine{process=P}=E) ->
+uci("genmoves" ++ _, #engine{process=P}=E) ->
+	P ! {genmoves},
+	{ok, E};
+
+uci("print" ++ _, #engine{process=P}=E) ->
 	P ! print,
 	{ok, E};
 
@@ -75,32 +67,21 @@ read_fen([H|T], I, #game{}=Game) ->
 	{Color, Piece} = get_info(H),
 	read_fen(T, I-1, put_piece(Color, Piece, I, Game)). 
 
-get_info($p) -> {#game.w, #board.p};
-get_info($r) -> {#game.w, #board.r};	 
-get_info($n) -> {#game.w, #board.n};
-get_info($b) -> {#game.w, #board.b};
-get_info($q) -> {#game.w, #board.q};
-get_info($k) -> {#game.w, #board.k};
-get_info($P) -> {#game.b, #board.p};
-get_info($R) -> {#game.b, #board.r};
-get_info($N) -> {#game.b, #board.n};
-get_info($B) -> {#game.b, #board.b};
-get_info($Q) -> {#game.b, #board.q};
-get_info($K) -> {#game.b, #board.k}.
-
 stop(#engine{}=Engine) ->
 	Engine#engine.process ! stop,
 	ok.
 
 quit() -> ok.
 
-p(#game{}=Game) ->
+p(#game{turn=C}=Game) ->
 	receive
 		stop -> ok;
 		{move, _, _} -> p(Game);
 		{position, L} -> 
 			NewGame = setup_board(string:tokens(L, " "), Game),
 			p(NewGame);
+		{genmoves} ->
+			gen_moves(C, Game);
 		print -> 
 			print_game(Game),
 			p(Game)
@@ -148,9 +129,9 @@ put_piece(Color, Piece, Pos, #game{main_board=#board{s=S}=MB}=Game) ->
 	G = setelement(Color, Game, NC),
 	G#game{main_board=MB0#board{s=S0}}.
 
-print_game(#game{main_board=#board{s=S}}) ->	
+print_game(#game{main_board=#board{s=S}}=Game) ->	
 	?DRAW_LINE,
-	print_game(S, 63).
+	print_game(S, 63). %%%	get_pawn_moves(#game.w, 
 
 print_game(Array, -1) -> io:format("|~n", []), ?DRAW_LINE;
 print_game(Array, N) ->
@@ -162,3 +143,40 @@ print_game(Array, N) ->
 	io:format("|~p", [array:get(N,Array)]),
 	print_game(Array, N-1).
 
+gen_moves(Color, #game{}=Game) ->
+	io:format("gn: [~p:~p]", [Color, Game]),
+	gen_pawn_moves(Color, Game#game{}).
+
+gen_pawn_moves(Color, #game{main_board=#board{p=P}}=Game) ->
+	io:format("gnm: [~p:~p]", [Color, Game]),
+	CPieces = element(Color, Game),
+	io:format("gnm2: [~p:~p]", [CPieces, P]),
+	Pawns = CPieces band P,
+	io:format("gnm3: [~p]~n", [Pawns]),
+	get_pawn_moves(Color, Game, Pawns, []).
+
+get_pawn_moves(_, _, 0, T) -> T;
+get_pawn_moves(Color, #game{main_board=#board{s=S}}=Game, Pawns, T) ->
+	case next_index(Pawns) of
+		{-1, _} -> T;
+		{Pos, L} -> 
+			case Color of
+				#game.w ->
+					M = Pos bsl 8;
+				_ ->
+					M = Pos bsr 8
+			end,
+			io:format("TEST M: ~p S:~p~n", [M, S]),
+			case M band S of
+				0 ->
+					Move = {quiet, Pos, M},
+					get_pawn_moves(Color, Game, L, [Move | T]);
+				_ ->	get_pawn_moves(Color, Game, L, T)
+			end;
+		X -> io:format("ERROR WRONG INDEX: ~p", [X])
+	end.
+		 
+next_index(0) -> {-1, 0};
+next_index(L) ->
+	B=bsf(L),
+	{B, L - B}.
