@@ -18,7 +18,7 @@
  9007199254740992,18014398509481984,36028797018963968,72057594037927936,
  144115188075855872,288230376151711744,576460752303423488,1152921504606846976,
  2305843009213693952,4611686018427387904,9223372036854775808,
- 18446744073709551616}.
+ 18446744073709551616}).
 
 -define(STRING_POS, {
 		"a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
@@ -65,20 +65,54 @@
 lbpow(I) -> element(I+1, ?POWS).
 
 bsf(BB) ->
-        element((((((BB band (-BB)) band ?KBMASK) * ?KDB64) band ?KBMASK) bsr 58) + 1, ?DB64).
+	I = (((((BB band (-BB)) band ?KBMASK) * ?KDB64) band ?KBMASK) bsr 58) + 1,
+        element(I, ?DB64).
 
-get_info($p) -> {#game.w, #board.p};
-get_info($r) -> {#game.w, #board.r};
-get_info($n) -> {#game.w, #board.n};
-get_info($b) -> {#game.w, #board.b};
-get_info($q) -> {#game.w, #board.q};
-get_info($k) -> {#game.w, #board.k};
-get_info($P) -> {#game.b, #board.p};
-get_info($R) -> {#game.b, #board.r};
-get_info($N) -> {#game.b, #board.n};
-get_info($B) -> {#game.b, #board.b};
-get_info($Q) -> {#game.b, #board.q};
-get_info($K) -> {#game.b, #board.k}.
+get_info($p) -> {#game.b, #board.p};
+get_info($r) -> {#game.b, #board.r};
+get_info($n) -> {#game.b, #board.n};
+get_info($b) -> {#game.b, #board.b};
+get_info($q) -> {#game.b, #board.q};
+get_info($k) -> {#game.b, #board.k};
+get_info($P) -> {#game.w, #board.p};
+get_info($R) -> {#game.w, #board.r};
+get_info($N) -> {#game.w, #board.n};
+get_info($B) -> {#game.w, #board.b};
+get_info($Q) -> {#game.w, #board.q};
+get_info($K) -> {#game.w, #board.k}.
+
+get_pos(C, L) -> CV = 7 - (C - $a), LV = (L - $1) * 8, CV + LV.
 
 %%%get_pawn_table_attack(#game.w, I) -> element(I+1, ?WHITE_PAWN_ATTACK);
-%%%get_pawn_table_attack(#game.b, I) -> element(I+1, ?BLACK_PAWN_ATTACK); 
+%%%get_pawn_table_attack(#game.b, I) -> element(I+1, ?BLACK_PAWN_ATTACK);
+
+get_pawn_range(#game.w, Pos) when Pos < 16#10000 -> {Pos + 8, Pos + 16};
+get_pawn_range(#game.b, Pos) when Pos > 16#800000000000 -> {Pos - 8, Pos - 16};
+get_pawn_range(#game.w, Pos) -> Pos + 8;
+get_pawn_range(#game.b, Pos) -> Pos - 8. 
+
+print_moves([], _) -> ok;
+print_moves([H|T], Game) ->
+        {_, Pos, M1} = H,
+        print_game(process_move(Pos, M1, Game)),
+        print_moves(T, Game).
+
+print_game(#game{main_board=#board{s=S}}) ->
+        ?DRAW_LINE,
+        print_game(S, 63).
+
+print_game(_, -1) -> io:format("|~n", []), ?DRAW_LINE;
+print_game(Array, N) ->
+        X = (N+1) rem 8,
+        case X == 0 andalso N < 63  of
+                true -> io:format("|~n", []), ?DRAW_LINE;
+                _ -> ok
+        end,
+        io:format("|~p", [array:get(N,Array)]),
+        print_game(Array, N-1).
+
+next_index(0) -> {-1, -1};
+next_index(L) ->
+        B=bsf(L),
+        {B, (L - lbpow(B))}.
+
