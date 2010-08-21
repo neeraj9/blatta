@@ -5,7 +5,7 @@
 -define(UCIOK, io:format("uciok~n",[])).
 -define(WBOARD, 16#ffff).
 -define(BBOARD, 16#ffff000000000000).
--define(DRAW_LINE, io:format("+--+--+--+--+--+--+--+--+~n", [])).
+-define(DRAW_LINE, io:format("+-+-+-+-+-+-+-+-+~n", [])).
 -define(EMPTY_GAME, #game{w=0, b=0, turn=2, main_board=#board{p=0, b=0, n=0, r=0, q=0, k=0, s=array:new([{size,64},{fixed,true},{default,0}])}}).
 -define(START_POS, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").
 -define(POWS, {1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,
@@ -91,11 +91,13 @@ get_pawn_range(#game.b, Pos) when Pos > 16#800000000000 -> {Pos - 8, Pos - 16};
 get_pawn_range(#game.w, Pos) -> Pos + 8;
 get_pawn_range(#game.b, Pos) -> Pos - 8. 
 
-print_moves([], _) -> ok;
-print_moves([H|T], Game) ->
+print_moves(T, Game) -> print_moves(T, Game, 1).
+print_moves([], _, _) -> ok;
+print_moves([H|T], Game, I) ->
         {_, Pos, M1} = H,
+	io:format("Move[~p]:~n", [I]),
         print_game(process_move(Pos, M1, Game)),
-        print_moves(T, Game).
+        print_moves(T, Game, I + 1).
 
 print_game(#game{main_board=#board{s=S}}) ->
         ?DRAW_LINE,
@@ -108,7 +110,7 @@ print_game(Array, N) ->
                 true -> io:format("|~n", []), ?DRAW_LINE;
                 _ -> ok
         end,
-        io:format("|~p", [array:get(N,Array)]),
+        io:format("|~s", [get_char(array:get(N,Array))]),
         print_game(Array, N-1).
 
 next_index(0) -> {-1, -1};
@@ -116,3 +118,6 @@ next_index(L) ->
         B=bsf(L),
         {B, (L - lbpow(B))}.
 
+get_char(0) -> " ";
+get_char({#game.b, Piece}) -> element(Piece - 1, {"p", "b", "n", "r", "q", "k"});
+get_char({#game.w, Piece}) -> element(Piece - 1, {"P", "B", "N", "R", "Q", "K"}).
