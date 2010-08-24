@@ -8,8 +8,8 @@ init() ->
 
 loop(#engine{}=Engine) ->
 	case io:get_line("") of
-       		eof -> ok;
-       		{error,Reason} -> io:format("read error:~p\n",[Reason]);
+	    eof -> ok;
+	    {error,Reason} -> io:format("read error:~p\n",[Reason]);
        		"quit" ++ _ ->
 			stop(Engine), 
 			quit();
@@ -37,17 +37,6 @@ new_engine(#engine{}=Engine) -> stop(Engine), new_engine().
 new_engine() -> Engine = #engine{process = spawn(fun () -> p(new_game()) end)}, {ok, Engine}.
 
 new_game() -> EMPTY = ?EMPTY_GAME, read_fen(?START_POS, EMPTY).
-
-read_fen(S, #game{}=Game) -> read_fen(S, 63, Game).
-
-read_fen([], _, #game{}=Game) -> Game;
-read_fen([$/|T], I, #game{}=Game) -> read_fen(T, I, Game);
-read_fen([N|T], I, #game{}=Game) when N >= $1, N =< $9 -> 
-	NN = (N - $1) + 1,
-	read_fen(T, I - NN, Game);
-read_fen([H|T], I, #game{}=Game) -> 
-	{Color, Piece} = get_info(H),
-	read_fen(T, I-1, put_piece(Color, Piece, I, Game)). 
 
 stop(#engine{}=Engine) -> Engine#engine.process ! stop, ok.
 
@@ -112,28 +101,48 @@ gen_moves(Color, #game{}=Game) ->
 gen_pawn_moves(Color, #game{main_board=#board{p=P}}=Game) ->
 	CPieces = element(Color, Game),
 	Pawns = CPieces band P,
-	get_pawn_moves(Color, Game, Pawns, []).
+	get_pawn_moves(Color, Game, Pawns).
 
-get_pawn_moves(_, _, 0, T) -> T;
-get_pawn_moves(Color, #game{main_board=#board{s=S}}=Game, Pawns, T) ->
+get_pawn_moves(_, _, 0) -> [];
+get_pawn_moves(Color, #game{main_board=#board{s=S}}=Game, Pawns) ->
 	case next_index(Pawns) of
-		{-1, _} -> T;
+		{-1, _} -> [];
 		{Pos, L} -> 
-			M = get_pawn_range(Color, Pos),
-			case M of
-				{M1, M2} -> 
-					T1 = gen_quiet(Pos, M1, S, T),
-					TT = gen_quiet(Pos, M2, S, T1);
-				_ ->
-					TT = gen_quiet(Pos, M, S, T)
-			end,
-			get_pawn_moves(Color, Game, L, TT);
+			TT = get_pawn_moves_on_pos(Color, S, Pos),
+			TT ++ get_pawn_moves(Color, Game, L);
 		X -> io:format("ERROR WRONG INDEX: ~p~n", [X])
 	end.
 
-gen_quiet(Pos, M, S, T) ->
-	case array:get(M, S) of
-        	0 -> [{quiet, Pos, M}|T];
-        	_ -> T
-	end.
+get_pawn_moves_on_pos(Color, S, Pos) ->
+    QM = get_pawn_range(Color, Pos),    
+    AM = get_pawn_range_a(Color, Pos),
+    lists:map(fun(X) -> {quiet, Pos, X} end, remove_colisions(QM, S)) ++ 
+	lists:map(fun(X) -> {attack, Pos, X} end, only_colisions(AM, S)).
 
+remove_colisions([], S) -> [];
+remove_colisions([H|T], S) -> 
+    case array:get(H, S) == 0 of
+	true -> 
+	    [ H | remove_colisions(T, S)];
+	_ ->
+	    []
+    end.
+
+only_colisions(L, S) -> lists:filter(fun(X) -> array:get(X, S) /= 0 end, L).
+
+colide(X, S) -> array:get(X, S) /= 0.
+
+gen_move(Type, Pos, M) ->
+	{Type, Pos, M}.
+
+get_pawn_range_a(#game.w, Pos) when Pos rem 8 == 0 -> [Pos + 9];
+get_pawn_range_a(#game.w, Pos) when Pos rem 8 == 7 -> [Pos + 7];
+get_pawn_range_a(#game.w, Pos) -> [Pos + 9, Pos + 7];
+get_pawn_range_a(#game.b, Pos) when Pos rem 8 == 7 -> [Pos - 9];
+get_pawn_range_a(#game.b, Pos) when Pos rem 8 == 0 -> [Pos - 7];
+get_pawn_range_a(#game.b, Pos) -> [Pos - 9, Pos - 7].
+
+get_pawn_range(#game.w, Pos) when Pos < 16#10000 -> [Pos + 8, Pos + 16];
+get_pawn_range(#game.b, Pos) when Pos > 16#800000000000 -> [Pos - 8, Pos - 16];
+get_pawn_range(#game.w, Pos) -> [Pos + 8];
+get_pawn_range(#game.b, Pos) -> [Pos - 8]. 
