@@ -116,24 +116,26 @@ get_pawn_moves(Color, #game{main_board=#board{s=S}}=Game, Pawns) ->
 get_pawn_moves_on_pos(Color, S, Pos) ->
     QM = get_pawn_range(Color, Pos),    
     AM = get_pawn_range_a(Color, Pos),
-    lists:map(fun(X) -> {quiet, Pos, X} end, remove_colisions(QM, S)) ++ 
-	lists:map(fun(X) -> {attack, Pos, X} end, only_colisions(AM, S)).
+    remove_colisions(Pos, QM, S) ++ only_captures(Pos, AM, S, Color).
 
-remove_colisions([], S) -> [];
-remove_colisions([H|T], S) -> 
+remove_colisions(_, [], _) -> [];
+remove_colisions(Pos, [H|T], S) -> 
     case array:get(H, S) == 0 of
 	true -> 
-	    [ H | remove_colisions(T, S)];
+	    [ {quiet, Pos, H} | remove_colisions(Pos, T, S)];
 	_ ->
 	    []
     end.
 
-only_colisions(L, S) -> lists:filter(fun(X) -> array:get(X, S) /= 0 end, L).
+is_capture(Pos, S, Color) ->
+    case array:get(Pos, S) of
+			     {#game.w, _} -> Color == #game.b;
+			     {#game.b, _} -> Color == #game.w;
+			     _ -> false
+    end.
 
-colide(X, S) -> array:get(X, S) /= 0.
-
-gen_move(Type, Pos, M) ->
-	{Type, Pos, M}.
+only_captures(Pos, L, S, Color) -> 
+    lists:map(fun(Y) -> {attack, Pos, Y} end, lists:filter(fun(X) -> is_capture(X, S, Color) end, L)). 
 
 get_pawn_range_a(#game.w, Pos) when Pos rem 8 == 0 -> [Pos + 9];
 get_pawn_range_a(#game.w, Pos) when Pos rem 8 == 7 -> [Pos + 7];
