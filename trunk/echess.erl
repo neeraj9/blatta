@@ -96,7 +96,13 @@ put_piece(Color, Piece, Pos, #game{main_board=#board{s=S}=MB}=Game) ->
 	G#game{main_board=MB0#board{s=S0}}.
 
 gen_moves(Color, #game{}=Game) -> 
-	gen_pawn_moves(Color, Game#game{}).
+	gen_pawn_moves(Color, Game#game{}) ++ gen_knight_moves(Color, Game#game{}).
+
+%%    __
+%%   (  )
+%%    ||
+%%   /__\
+%%  (____)
 
 gen_pawn_moves(Color, #game{main_board=#board{p=P}}=Game) ->
 	CPieces = element(Color, Game),
@@ -148,3 +154,34 @@ get_pawn_range(#game.w, Pos) when Pos < 16#10000 -> [Pos + 8, Pos + 16];
 get_pawn_range(#game.b, Pos) when Pos > 16#800000000000 -> [Pos - 8, Pos - 16];
 get_pawn_range(#game.w, Pos) -> [Pos + 8];
 get_pawn_range(#game.b, Pos) -> [Pos - 8]. 
+
+%%     __/|
+%%  __/o   \
+%% {==      |
+%%    \    /
+%%    /__<
+%%   /____\
+%%  (______)
+
+gen_knight_moves(Color, #game{main_board=#board{n=N}}=Game) ->
+	CPieces = element(Color, Game),
+	Knights = CPieces band N,
+	get_knight_moves(Color, Game, Knights).
+
+get_knight_moves(Color, #game{main_board=#board{s=S}}=Game, Knights) ->
+    	case next_index(Knights) of
+		{-1, _} -> [];
+		{Pos, L} -> 
+			TT = get_knight_moves_on_pos(Color, S, Pos),
+			TT ++ get_knight_moves(Color, Game, L);
+		X -> io:format("ERROR WRONG INDEX: ~p~n", [X])
+	end.
+
+get_knight_moves_on_pos(Color, S, Pos) ->
+    lists:map(fun(X) -> {quiet, Pos, X} end, get_indexes(element(Pos + 1, ?KNIGHT_MOVES))).
+
+get_indexes(I) ->
+	case next_index(I) of
+		{-1, _} -> [];
+		{Pos, L} -> [ Pos | get_indexes(L) ]
+				end.
