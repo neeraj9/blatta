@@ -168,9 +168,6 @@ gen_knight_moves(Color, #game{main_board=#board{n=N}}=Game) ->
 	Knights = CPieces band N,
 	get_knight_moves(Color, Game, Knights).
 
-get_colors(Color, #game{}=Game) ->
-	{element(Color, Game), element(((Color + 1) rem 2) + 2, Game)}.
-
 get_knight_moves(Color, #game{main_board=#board{s=S}}=Game, Knights) ->
 	{CB, EB} = get_colors(Color, Game),
     	get_knight_moves(Color, S, Knights, CB, EB). 
@@ -179,16 +176,20 @@ get_knight_moves(Color, S, Pieces, BoardColor, EnemyBoard) ->
 		{-1, _} -> [];
 		{Pos, L} -> 
 			io:format("T ~p ~p ~p ~p ~n", [Color, S, Pos, BoardColor]),
-			TT = get_knight_moves_on_pos(Color, S, Pos, BoardColor),
+			TT = get_knight_moves_on_pos(Pos, BoardColor, EnemyBoard),
 			TT ++ get_knight_moves(Color, S, L, BoardColor, EnemyBoard);
 		X -> io:format("ERROR WRONG INDEX: ~p~n", [X])
 	end.
 
-get_knight_moves_on_pos(Color, S, Pos, CB) ->
-    lists:map(fun(X) -> {quiet, Pos, X} end, get_indexes(element(Pos + 1, ?KNIGHT_MOVES) band (bnot CB ))).
+get_knight_moves_on_pos(Pos, CB, EnemyBoard) ->
+    Valid = element(Pos + 1, ?KNIGHT_MOVES) band (bnot CB),
+    Attack = Valid band EnemyBoard,
+    Quiet = Valid band (bnot Attack),
+    lists:map(fun(X) -> {quiet, Pos, X} end, get_indexes(Quiet)) ++ lists:map(fun(X) -> {attack, Pos, X} end, get_indexes(Attack)).
 
-get_indexes(I) ->
-	case next_index(I) of
-		{-1, _} -> [];
-		{Pos, L} -> [ Pos | get_indexes(L) ]
-				end.
+%%  | + |
+%%  ( - )
+%%   | |
+%%  ( _ )
+%% (_____)
+

@@ -121,4 +121,13 @@ read_fen([H|T], I, #game{}=Game) ->
 
 get_file(I) -> element((I rem 8)+1, ?FILES).
 
+iff(T, VT, VF) -> case T of true -> VT; _ -> VF end.
 
+get_colors(Color, #game{}=Game) ->
+	{element(Color, Game), element(((Color + 1) rem 2) + 2, Game)}.
+
+get_indexes(I) ->
+	case next_index(I) of
+		{-1, _} -> [];
+		{Pos, L} -> [ Pos | get_indexes(L) ]
+				end.
